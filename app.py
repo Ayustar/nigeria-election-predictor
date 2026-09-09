@@ -5,140 +5,168 @@ import joblib
 import json
 import plotly.graph_objects as go
 
-# Load models and features
-model_apc = joblib.load('models/model_apc.pkl')
-model_pdp = joblib.load('models/model_pdp.pkl')
-scaler = joblib.load('models/scaler_pdp.pkl')
-
-with open('data/features.json', 'r') as f:
-    features = json.load(f)
-
-# State data
-state_data = {
-    'Abia': {'zone': 4, 'state_avg_apc': 7.59, 'state_avg_pdp': 66.90, 'prev_apc': 26.31, 'prev_pdp': 67.96, 'prev_third': 3.73, 'zone_year_apc': 8.45, 'zone_year_pdp': 21.54},
-    'Adamawa': {'zone': 1, 'state_avg_apc': 42.33, 'state_avg_pdp': 51.23, 'prev_apc': 46.59, 'prev_pdp': 50.55, 'prev_third': 2.86, 'zone_year_apc': 43.21, 'zone_year_pdp': 48.32},
-    'Akwa Ibom': {'zone': 5, 'state_avg_apc': 16.29, 'state_avg_pdp': 77.95, 'prev_apc': 30.31, 'prev_pdp': 65.38, 'prev_third': 4.31, 'zone_year_apc': 24.13, 'zone_year_pdp': 52.17},
-    'Anambra': {'zone': 4, 'state_avg_apc': 5.12, 'state_avg_pdp': 55.63, 'prev_apc': 5.50, 'prev_pdp': 91.06, 'prev_third': 1.44, 'zone_year_apc': 8.45, 'zone_year_pdp': 21.54},
-    'Bauchi': {'zone': 1, 'state_avg_apc': 56.74, 'state_avg_pdp': 38.52, 'prev_apc': 77.95, 'prev_pdp': 19.82, 'prev_third': 2.23, 'zone_year_apc': 43.21, 'zone_year_pdp': 48.32},
-    'Bayelsa': {'zone': 5, 'state_avg_apc': 20.14, 'state_avg_pdp': 74.23, 'prev_apc': 36.93, 'prev_pdp': 61.65, 'prev_third': 1.42, 'zone_year_apc': 24.13, 'zone_year_pdp': 52.17},
-    'Benue': {'zone': 2, 'state_avg_apc': 38.92, 'state_avg_pdp': 54.18, 'prev_apc': 47.70, 'prev_pdp': 48.41, 'prev_third': 3.89, 'zone_year_apc': 35.67, 'zone_year_pdp': 45.23},
-    'Borno': {'zone': 1, 'state_avg_apc': 65.43, 'state_avg_pdp': 31.24, 'prev_apc': 90.94, 'prev_pdp': 7.45, 'prev_third': 1.61, 'zone_year_apc': 43.21, 'zone_year_pdp': 48.32},
-    'Cross River': {'zone': 5, 'state_avg_apc': 22.18, 'state_avg_pdp': 71.34, 'prev_apc': 27.80, 'prev_pdp': 69.42, 'prev_third': 2.78, 'zone_year_apc': 24.13, 'zone_year_pdp': 52.17},
-    'Delta': {'zone': 5, 'state_avg_apc': 18.43, 'state_avg_pdp': 75.82, 'prev_apc': 26.67, 'prev_pdp': 70.23, 'prev_third': 3.10, 'zone_year_apc': 24.13, 'zone_year_pdp': 52.17},
-    'Ebonyi': {'zone': 4, 'state_avg_apc': 18.92, 'state_avg_pdp': 72.43, 'prev_apc': 21.40, 'prev_pdp': 76.82, 'prev_third': 1.78, 'zone_year_apc': 8.45, 'zone_year_pdp': 21.54},
-    'Edo': {'zone': 5, 'state_avg_apc': 38.64, 'state_avg_pdp': 55.23, 'prev_apc': 52.41, 'prev_pdp': 44.32, 'prev_third': 3.27, 'zone_year_apc': 24.13, 'zone_year_pdp': 52.17},
-    'Ekiti': {'zone': 3, 'state_avg_apc': 52.34, 'state_avg_pdp': 43.21, 'prev_apc': 53.68, 'prev_pdp': 43.82, 'prev_third': 2.50, 'zone_year_apc': 55.43, 'zone_year_pdp': 36.21},
-    'Enugu': {'zone': 4, 'state_avg_apc': 6.43, 'state_avg_pdp': 88.32, 'prev_apc': 8.23, 'prev_pdp': 89.54, 'prev_third': 2.23, 'zone_year_apc': 8.45, 'zone_year_pdp': 21.54},
-    'FCT': {'zone': 2, 'state_avg_apc': 32.14, 'state_avg_pdp': 52.43, 'prev_apc': 35.00, 'prev_pdp': 58.32, 'prev_third': 6.68, 'zone_year_apc': 35.67, 'zone_year_pdp': 45.23},
-    'Gombe': {'zone': 1, 'state_avg_apc': 52.43, 'state_avg_pdp': 43.21, 'prev_apc': 62.30, 'prev_pdp': 34.82, 'prev_third': 2.88, 'zone_year_apc': 43.21, 'zone_year_pdp': 48.32},
-    'Imo': {'zone': 4, 'state_avg_apc': 28.43, 'state_avg_pdp': 55.32, 'prev_apc': 42.13, 'prev_pdp': 51.23, 'prev_third': 6.64, 'zone_year_apc': 8.45, 'zone_year_pdp': 21.54},
-    'Jigawa': {'zone': 0, 'state_avg_apc': 64.32, 'state_avg_pdp': 33.21, 'prev_apc': 76.23, 'prev_pdp': 21.54, 'prev_third': 2.23, 'zone_year_apc': 61.23, 'zone_year_pdp': 35.43},
-    'Kaduna': {'zone': 0, 'state_avg_apc': 55.43, 'state_avg_pdp': 41.23, 'prev_apc': 66.28, 'prev_pdp': 31.23, 'prev_third': 2.49, 'zone_year_apc': 61.23, 'zone_year_pdp': 35.43},
-    'Kano': {'zone': 0, 'state_avg_apc': 64.74, 'state_avg_pdp': 13.83, 'prev_apc': 77.45, 'prev_pdp': 20.71, 'prev_third': 1.84, 'zone_year_apc': 61.23, 'zone_year_pdp': 35.43},
-    'Katsina': {'zone': 0, 'state_avg_apc': 63.21, 'state_avg_pdp': 33.54, 'prev_apc': 80.32, 'prev_pdp': 18.23, 'prev_third': 1.45, 'zone_year_apc': 61.23, 'zone_year_pdp': 35.43},
-    'Kebbi': {'zone': 0, 'state_avg_apc': 58.43, 'state_avg_pdp': 38.21, 'prev_apc': 74.23, 'prev_pdp': 23.54, 'prev_third': 2.23, 'zone_year_apc': 61.23, 'zone_year_pdp': 35.43},
-    'Kogi': {'zone': 2, 'state_avg_apc': 48.32, 'state_avg_pdp': 46.23, 'prev_apc': 55.43, 'prev_pdp': 40.32, 'prev_third': 4.25, 'zone_year_apc': 35.67, 'zone_year_pdp': 45.23},
-    'Kwara': {'zone': 2, 'state_avg_apc': 48.23, 'state_avg_pdp': 47.32, 'prev_apc': 54.32, 'prev_pdp': 41.23, 'prev_third': 4.45, 'zone_year_apc': 35.67, 'zone_year_pdp': 45.23},
-    'Lagos': {'zone': 3, 'state_avg_apc': 58.32, 'state_avg_pdp': 35.43, 'prev_apc': 66.32, 'prev_pdp': 28.54, 'prev_third': 5.14, 'zone_year_apc': 55.43, 'zone_year_pdp': 36.21},
-    'Nasarawa': {'zone': 2, 'state_avg_apc': 46.23, 'state_avg_pdp': 49.32, 'prev_apc': 55.32, 'prev_pdp': 41.23, 'prev_third': 3.45, 'zone_year_apc': 35.67, 'zone_year_pdp': 45.23},
-    'Niger': {'zone': 2, 'state_avg_apc': 52.43, 'state_avg_pdp': 43.21, 'prev_apc': 62.32, 'prev_pdp': 34.23, 'prev_third': 3.45, 'zone_year_apc': 35.67, 'zone_year_pdp': 45.23},
-    'Ogun': {'zone': 3, 'state_avg_apc': 57.32, 'state_avg_pdp': 37.43, 'prev_apc': 65.43, 'prev_pdp': 30.23, 'prev_third': 4.34, 'zone_year_apc': 55.43, 'zone_year_pdp': 36.21},
-    'Ondo': {'zone': 3, 'state_avg_apc': 52.43, 'state_avg_pdp': 37.32, 'prev_apc': 62.32, 'prev_pdp': 32.43, 'prev_third': 5.25, 'zone_year_apc': 55.43, 'zone_year_pdp': 36.21},
-    'Osun': {'zone': 3, 'state_avg_apc': 52.32, 'state_avg_pdp': 42.43, 'prev_apc': 60.23, 'prev_pdp': 36.54, 'prev_third': 3.77, 'zone_year_apc': 55.43, 'zone_year_pdp': 36.21},
-    'Oyo': {'zone': 3, 'state_avg_apc': 53.43, 'state_avg_pdp': 40.32, 'prev_apc': 62.43, 'prev_pdp': 33.21, 'prev_third': 4.57, 'zone_year_apc': 55.43, 'zone_year_pdp': 36.21},
-    'Plateau': {'zone': 2, 'state_avg_apc': 44.32, 'state_avg_pdp': 50.43, 'prev_apc': 52.43, 'prev_pdp': 43.21, 'prev_third': 4.36, 'zone_year_apc': 35.67, 'zone_year_pdp': 45.23},
-    'Rivers': {'zone': 5, 'state_avg_apc': 32.43, 'state_avg_pdp': 61.32, 'prev_apc': 37.32, 'prev_pdp': 56.43, 'prev_third': 6.25, 'zone_year_apc': 24.13, 'zone_year_pdp': 52.17},
-    'Sokoto': {'zone': 0, 'state_avg_apc': 52.43, 'state_avg_pdp': 44.32, 'prev_apc': 60.23, 'prev_pdp': 37.43, 'prev_third': 2.34, 'zone_year_apc': 61.23, 'zone_year_pdp': 35.43},
-    'Taraba': {'zone': 1, 'state_avg_apc': 38.32, 'state_avg_pdp': 57.43, 'prev_apc': 43.21, 'prev_pdp': 53.32, 'prev_third': 3.47, 'zone_year_apc': 43.21, 'zone_year_pdp': 48.32},
-    'Yobe': {'zone': 1, 'state_avg_apc': 62.43, 'state_avg_pdp': 34.32, 'prev_apc': 78.32, 'prev_pdp': 19.43, 'prev_third': 2.25, 'zone_year_apc': 43.21, 'zone_year_pdp': 48.32},
-    'Zamfara': {'zone': 0, 'state_avg_apc': 60.32, 'state_avg_pdp': 36.43, 'prev_apc': 72.32, 'prev_pdp': 25.43, 'prev_third': 2.25, 'zone_year_apc': 61.23, 'zone_year_pdp': 35.43},
-}
-
-# Page config
 st.set_page_config(page_title="Nigeria Election Predictor", layout="wide")
 
-st.title("🗳️ Nigeria Presidential Election Predictor")
-st.caption("Predicting 2023 state-level vote share using ML — APC, PDP, and LP")
+@st.cache_resource
+def load_artifacts():
+    model_apc = joblib.load('models/model_apc.pkl')
+    model_pdp = joblib.load('models/model_pdp.pkl')
+    scaler = joblib.load('models/scaler_pdp.pkl')
+    with open('data/features.json', 'r') as f:
+        feature_names = json.load(f)
+    return model_apc, model_pdp, scaler, feature_names
 
+@st.cache_data
+def load_data():
+    features = pd.read_csv('data/state_features_2023.csv')
+    master = pd.read_csv('data/election_predictor_master_v2.csv')
+    return features, master
+
+model_apc, model_pdp, scaler, feature_names = load_artifacts()
+state_df, master = load_data()
+
+# Clean actual results (2019 column has % signs)
+for col in ['Tinubu_%', 'Atiku_%', 'Obi_%', 'Others_%']:
+    master[col] = pd.to_numeric(master[col].astype(str).str.replace('%', ''), errors='coerce')
+
+actual_2023 = master[master['Year'] == 2023][
+    ['State', 'Tinubu_%', 'Atiku_%', 'Obi_%', 'Others_%', 'Total_Valid_Votes']
+].copy()
+actual_2023.columns = ['State', 'APC_%', 'PDP_%', 'LP_%', 'Others_%', 'Votes']
+
+GOV_DECODE = {0: 'APC', 1: 'PDP', 2: 'Other'}
+GOV_ENCODE = {'APC': 0, 'PDP': 1, 'Other': 2}
+PARTY_COLORS = {'APC': '#004C97', 'PDP': '#CC0000', 'LP': '#008000'}
+
+st.title("🗳️ Nigeria Presidential Election Predictor")
+st.caption("2023 state-level vote share predictions — trained on 2011–2019, validated against 2023")
 st.divider()
 
-# Sidebar
+# ---------- Sidebar ----------
 with st.sidebar:
     st.header("State & Scenario Inputs")
 
-    selected_state = st.selectbox("Select State", sorted(state_data.keys()))
+    selected_state = st.selectbox("Select State", sorted(state_df['State'].unique()))
+    row = state_df[state_df['State'] == selected_state].iloc[0]
 
     st.subheader("Adjust Scenario")
-    turnout = st.slider("Voter Turnout (%)", 10.0, 60.0, 26.93)
-    gov_party = st.selectbox("Governor's Party", ["APC", "PDP", "Other"])
-    incumbent = st.selectbox("Federal Incumbent Party", ["APC", "PDP"])
+    turnout = st.slider("Voter Turnout (%)", 10.0, 60.0, float(row['Turnout_%']))
+    party_options = ["APC", "PDP", "Other"]
+    gov_party = st.selectbox(
+        "Governor's Party",
+        party_options,
+        index=party_options.index(GOV_DECODE[int(row['Gov_Party_Encoded'])])
+    )
+    incumbent = st.selectbox("Federal Incumbent Party", ["APC", "PDP"], index=0)
+    show_actual = st.checkbox("Show actual 2023 results", value=True)
 
-# Encode inputs
-gov_encoded = 0 if gov_party == "APC" else 1 if gov_party == "PDP" else 2
-incumbent_encoded = 1 if incumbent == "APC" else 0
-gov_aligns = 1 if gov_party == incumbent else 0
+# ---------- Apply scenario to all states ----------
+gov_encoded = GOV_ENCODE[gov_party]
+incumbent_encoded = 1 if incumbent == 'APC' else 0
 
-state = state_data[selected_state]
+scen = state_df.copy()
+scen['Turnout_%'] = turnout
+scen['Gov_Party_Encoded'] = gov_encoded
+scen['Incumbent_Encoded'] = incumbent_encoded
+scen['Gov_Aligns_Incumbent'] = (scen['Gov_Party_Encoded'] == incumbent_encoded).astype(int)
 
-security = {2023: 751}[2023]
+X = scen[feature_names]
+scen['Pred_APC_%'] = model_apc.predict(X)
+scen['Pred_PDP_%'] = model_pdp.predict(scaler.transform(X))
+scen['Pred_LP_%'] = np.clip(100 - scen['Pred_APC_%'] - scen['Pred_PDP_%'], 0, None)
 
-input_data = pd.DataFrame([{
-    'Zone_Encoded': state['zone'],
-    'Turnout_%': turnout,
-    'Gov_Party_Encoded': gov_encoded,
-    'Incumbent_Encoded': incumbent_encoded,
-    'Gov_Aligns_Incumbent': gov_aligns,
-    'National_Security_Incidents': security,
-    'Prev_APC_%': state['prev_apc'],
-    'Prev_PDP_%': state['prev_pdp'],
-    'Prev_Third_Party_%': state['prev_third'],
-    'Third_Party_%': 28.53,
-    'State_Avg_APC_%': state['state_avg_apc'],
-    'State_Avg_PDP_%': state['state_avg_pdp'],
-    'Zone_Year_APC_%': state['zone_year_apc'],
-    'Zone_Year_PDP_%': state['zone_year_pdp'],
-}])
+scen = scen.merge(actual_2023[['State', 'Votes']], on='State', how='left')
 
-# Predictions
-apc_pred = float(model_apc.predict(input_data)[0])
-pdp_pred = float(model_pdp.predict(scaler.transform(input_data))[0])
-lp_pred = max(0, 100 - apc_pred - pdp_pred)
-others_pred = max(0, 100 - apc_pred - pdp_pred - lp_pred)
+# ---------- Selected state ----------
+sel = scen[scen['State'] == selected_state].iloc[0]
+act = actual_2023[actual_2023['State'] == selected_state].iloc[0]
 
-# Normalize
-total = apc_pred + pdp_pred + lp_pred + others_pred
-apc_pred = (apc_pred / total) * 100
-pdp_pred = (pdp_pred / total) * 100
-lp_pred = (lp_pred / total) * 100
+st.header(f"📍 {selected_state}")
 
-# Main display
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("APC", f"{apc_pred:.1f}%")
-with col2:
-    st.metric("PDP", f"{pdp_pred:.1f}%")
-with col3:
-    st.metric("LP", f"{lp_pred:.1f}%")
+c1, c2, c3 = st.columns(3)
+c1.metric("APC — Predicted", f"{sel['Pred_APC_%']:.1f}%",
+          f"Actual: {act['APC_%']:.1f}%" if show_actual else None)
+c2.metric("PDP — Predicted", f"{sel['Pred_PDP_%']:.1f}%",
+          f"Actual: {act['PDP_%']:.1f}%" if show_actual else None)
+c3.metric("LP — Derived", f"{sel['Pred_LP_%']:.1f}%",
+          f"Actual: {act['LP_%']:.1f}%" if show_actual else None)
+
+fig = go.Figure()
+if show_actual:
+    fig.add_trace(go.Bar(
+        x=['APC', 'PDP', 'LP'], y=[act['APC_%'], act['PDP_%'], act['LP_%']],
+        name='Actual 2023', marker_color='lightgray'
+    ))
+fig.add_trace(go.Bar(
+    x=['APC', 'PDP', 'LP'],
+    y=[sel['Pred_APC_%'], sel['Pred_PDP_%'], sel['Pred_LP_%']],
+    name='Predicted', marker_color=['#004C97', '#CC0000', '#008000'],
+    text=[f"{sel['Pred_APC_%']:.1f}%", f"{sel['Pred_PDP_%']:.1f}%", f"{sel['Pred_LP_%']:.1f}%"],
+    textposition='outside'
+))
+fig.update_layout(
+    title=f"{selected_state} — Predicted vs Actual",
+    yaxis=dict(title="Vote Share (%)", range=[0, 100]),
+    barmode='group', plot_bgcolor='white', height=400
+)
+st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-# Bar chart
-fig = go.Figure(go.Bar(
-    x=['APC', 'PDP', 'LP'],
-    y=[apc_pred, pdp_pred, lp_pred],
-    marker_color=['#004C97', '#CC0000', '#008000'],
-    text=[f"{apc_pred:.1f}%", f"{pdp_pred:.1f}%", f"{lp_pred:.1f}%"],
-    textposition='outside'
+# ---------- National result ----------
+st.header("🇳🇬 Nationwide Result (under current scenario)")
+
+w = scen['Votes']
+nat_pred = {
+    'APC': float((scen['Pred_APC_%'] * w).sum() / w.sum()),
+    'PDP': float((scen['Pred_PDP_%'] * w).sum() / w.sum()),
+    'LP': float((scen['Pred_LP_%'] * w).sum() / w.sum()),
+}
+nat_actual = {
+    'APC': float((actual_2023['APC_%'] * actual_2023['Votes']).sum() / actual_2023['Votes'].sum()),
+    'PDP': float((actual_2023['PDP_%'] * actual_2023['Votes']).sum() / actual_2023['Votes'].sum()),
+    'LP': float((actual_2023['LP_%'] * actual_2023['Votes']).sum() / actual_2023['Votes'].sum()),
+}
+
+winner = max(nat_pred, key=nat_pred.get)
+n1, n2, n3 = st.columns(3)
+n1.metric("Predicted Winner 🏆", winner, f"{nat_pred[winner]:.1f}% nationally")
+n2.metric("APC national", f"{nat_pred['APC']:.1f}%", f"Actual: {nat_actual['APC']:.1f}%" if show_actual else None)
+n3.metric("PDP national", f"{nat_pred['PDP']:.1f}%", f"Actual: {nat_actual['PDP']:.1f}%" if show_actual else None)
+
+fig2 = go.Figure()
+if show_actual:
+    fig2.add_trace(go.Bar(
+        x=list(nat_actual.keys()), y=list(nat_actual.values()),
+        name='Actual 2023', marker_color='lightgray'
+    ))
+fig2.add_trace(go.Bar(
+    x=list(nat_pred.keys()), y=list(nat_pred.values()),
+    name='Predicted', marker_color=['#004C97', '#CC0000', '#008000'],
+    text=[f"{v:.1f}%" for v in nat_pred.values()], textposition='outside'
 ))
-
-fig.update_layout(
-    title=f"Predicted 2023 Vote Share — {selected_state}",
-    yaxis_title="Vote Share (%)",
-    yaxis=dict(range=[0, 100]),
-    plot_bgcolor='white',
-    height=400
+fig2.update_layout(
+    title="National Vote Share — Predicted vs Actual (weighted by votes cast)",
+    yaxis=dict(title="Vote Share (%)", range=[0, 60]),
+    barmode='group', plot_bgcolor='white', height=400
 )
+st.plotly_chart(fig2, use_container_width=True)
 
-st.plotly_chart(fig, use_container_width=True)
+# ---------- State-by-state table ----------
+st.subheader("All States — Predicted vs Actual")
 
-st.caption("⚠️ LP% is derived from remaining vote share after APC and PDP predictions. Model trained on 2011–2019 elections, validated against 2023.")
+table = scen[['State', 'Pred_APC_%', 'Pred_PDP_%', 'Pred_LP_%']].copy()
+table[['Pred_APC_%', 'Pred_PDP_%', 'Pred_LP_%']] = table[['Pred_APC_%', 'Pred_PDP_%', 'Pred_LP_%']].round(1)
+table.columns = ['State', 'APC %', 'PDP %', 'LP %']
+
+if show_actual:
+    table = table.merge(
+        actual_2023[['State', 'APC_%', 'PDP_%', 'LP_%']].round(1),
+        on='State', suffixes=(' (Pred)', ' (Actual)')
+    )
+
+st.dataframe(table.sort_values('State').reset_index(drop=True), use_container_width=True, height=400)
+
+st.caption("⚠️ LP% is derived from remaining vote share — the model was trained on two-party elections (2011–2019) "
+           "and cannot independently predict LP's 2023 surge. Expect largest errors in the South-East (Obi) "
+           "and North-West (Kwankwaso). National figures weighted by votes cast per state.")
