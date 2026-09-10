@@ -1,31 +1,25 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import json
+import requests
 import plotly.graph_objects as go
+
+# ── Config ───────────────────────────────────────────────────────────────────
+API_URL = "https://nigeria-election-predictor-api.onrender.com/predict"
 
 st.set_page_config(page_title="Nigeria Election Predictor", layout="wide")
 
-@st.cache_resource
-def load_artifacts():
-    model_apc = joblib.load('models/model_apc.pkl')
-    model_pdp = joblib.load('models/model_pdp.pkl')
-    scaler = joblib.load('models/scaler_pdp.pkl')
-    with open('data/features.json', 'r') as f:
-        feature_names = json.load(f)
-    return model_apc, model_pdp, scaler, feature_names
-
+# ── Load data ─────────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
     features = pd.read_csv('data/state_features_2023.csv')
-    master = pd.read_csv('data/election_predictor_master_v2.csv')
+    master   = pd.read_csv('data/election_predictor_master_v2.csv')
     return features, master
 
-model_apc, model_pdp, scaler, feature_names = load_artifacts()
 state_df, master = load_data()
 
-# Clean actual results (2019 column has % signs)
+# Clean actual results
 for col in ['Tinubu_%', 'Atiku_%', 'Obi_%', 'Others_%']:
     master[col] = pd.to_numeric(master[col].astype(str).str.replace('%', ''), errors='coerce')
 
@@ -36,13 +30,35 @@ actual_2023.columns = ['State', 'APC_%', 'PDP_%', 'LP_%', 'Others_%', 'Votes']
 
 GOV_DECODE = {0: 'APC', 1: 'PDP', 2: 'Other'}
 GOV_ENCODE = {'APC': 0, 'PDP': 1, 'Other': 2}
-PARTY_COLORS = {'APC': '#004C97', 'PDP': '#CC0000', 'LP': '#008000'}
 
+# ── API call ──────────────────────────────────────────────────────────────────
+def call_predict_api(row_dict):
+    payload = {
+        "Zone_Encoded":               float(row_dict['Zone_Encoded']),
+        "Turnout_pct":                float(row_dict['Turnout_%']),
+        "Gov_Party_Encoded":          float(row_dict['Gov_Party_Encoded']),
+        "Incumbent_Encoded":          float(row_dict['Incumbent_Encoded']),
+        "Gov_Aligns_Incumbent":       float(row_dict['Gov_Aligns_Incumbent']),
+        "National_Security_Incidents":float(row_dict['National_Security_Incidents']),
+        "Prev_APC_pct":               float(row_dict['Prev_APC_%']),
+        "Prev_PDP_pct":               float(row_dict['Prev_PDP_%']),
+        "Prev_Third_Party_pct":       float(row_dict['Prev_Third_Party_%']),
+        "Third_Party_pct":            float(row_dict['Third_Party_%']),
+        "State_Avg_APC_pct":          float(row_dict['State_Avg_APC_%']),
+        "State_Avg_PDP_pct":          float(row_dict['State_Avg_PDP_%']),
+        "Zone_Year_APC_pct":          float(row_dict['Zone_Year_APC_%']),
+        "Zone_Year_PDP_pct":          float(row_dict['Zone_Year_PDP_%']),
+    }
+    response = requests.post(API_URL, json=payload, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+# ── UI ────────────────────────────────────────────────────────────────────────
 st.title("🗳️ Nigeria Presidential Election Predictor")
 st.caption("2023 state-level vote share predictions — trained on 2011–2019, validated against 2023")
 st.divider()
 
-# ---------- Sidebar ----------
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("State & Scenario Inputs")
 
@@ -50,34 +66,53 @@ with st.sidebar:
     row = state_df[state_df['State'] == selected_state].iloc[0]
 
     st.subheader("Adjust Scenario")
-    turnout = st.slider("Voter Turnout (%)", 10.0, 60.0, float(row['Turnout_%']))
+    turnout   = st.slider("Voter Turnout (%)", 10.0, 60.0, float(row['Turnout_%']))
     party_options = ["APC", "PDP", "Other"]
     gov_party = st.selectbox(
         "Governor's Party",
         party_options,
         index=party_options.index(GOV_DECODE[int(row['Gov_Party_Encoded'])])
     )
-    incumbent = st.selectbox("Federal Incumbent Party", ["APC", "PDP"], index=0)
+    incumbent   = st.selectbox("Federal Incumbent Party", ["APC", "PDP"], index=0)
     show_actual = st.checkbox("Show actual 2023 results", value=True)
 
-# ---------- Apply scenario to all states ----------
-gov_encoded = GOV_ENCODE[gov_party]
+# ── Build scenario for all states ────────────────────────────────────────────
+gov_encoded       = GOV_ENCODE[gov_party]
 incumbent_encoded = 1 if incumbent == 'APC' else 0
 
 scen = state_df.copy()
-scen['Turnout_%'] = turnout
-scen['Gov_Party_Encoded'] = gov_encoded
-scen['Incumbent_Encoded'] = incumbent_encoded
+scen['Turnout_%']          = turnout
+scen['Gov_Party_Encoded']  = gov_encoded
+scen['Incumbent_Encoded']  = incumbent_encoded
 scen['Gov_Aligns_Incumbent'] = (scen['Gov_Party_Encoded'] == incumbent_encoded).astype(int)
 
-X = scen[feature_names]
-scen['Pred_APC_%'] = model_apc.predict(X)
-scen['Pred_PDP_%'] = model_pdp.predict(scaler.transform(X))
-scen['Pred_LP_%'] = np.clip(100 - scen['Pred_APC_%'] - scen['Pred_PDP_%'], 0, None)
+# ── Call API for every state ──────────────────────────────────────────────────
+with st.spinner("Getting predictions from API..."):
+    pred_apc, pred_pdp, pred_lp = [], [], []
+    errors = []
+
+    for _, state_row in scen.iterrows():
+        try:
+            result = call_predict_api(state_row.to_dict())
+            pred_apc.append(result['apc_pct'])
+            pred_pdp.append(result['pdp_pct'])
+            pred_lp.append(result['lp_pct'])
+        except Exception as e:
+            errors.append(state_row['State'])
+            pred_apc.append(np.nan)
+            pred_pdp.append(np.nan)
+            pred_lp.append(np.nan)
+
+    scen['Pred_APC_%'] = pred_apc
+    scen['Pred_PDP_%'] = pred_pdp
+    scen['Pred_LP_%']  = pred_lp
+
+if errors:
+    st.warning(f"API call failed for: {', '.join(errors)}")
 
 scen = scen.merge(actual_2023[['State', 'Votes']], on='State', how='left')
 
-# ---------- Selected state ----------
+# ── Selected state ────────────────────────────────────────────────────────────
 sel = scen[scen['State'] == selected_state].iloc[0]
 act = actual_2023[actual_2023['State'] == selected_state].iloc[0]
 
@@ -88,7 +123,7 @@ c1.metric("APC — Predicted", f"{sel['Pred_APC_%']:.1f}%",
           f"Actual: {act['APC_%']:.1f}%" if show_actual else None)
 c2.metric("PDP — Predicted", f"{sel['Pred_PDP_%']:.1f}%",
           f"Actual: {act['PDP_%']:.1f}%" if show_actual else None)
-c3.metric("LP — Derived", f"{sel['Pred_LP_%']:.1f}%",
+c3.metric("LP — Derived",    f"{sel['Pred_LP_%']:.1f}%",
           f"Actual: {act['LP_%']:.1f}%" if show_actual else None)
 
 fig = go.Figure()
@@ -113,19 +148,19 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-# ---------- National result ----------
+# ── National result ───────────────────────────────────────────────────────────
 st.header("🇳🇬 Nationwide Result (under current scenario)")
 
 w = scen['Votes']
 nat_pred = {
     'APC': float((scen['Pred_APC_%'] * w).sum() / w.sum()),
     'PDP': float((scen['Pred_PDP_%'] * w).sum() / w.sum()),
-    'LP': float((scen['Pred_LP_%'] * w).sum() / w.sum()),
+    'LP':  float((scen['Pred_LP_%']  * w).sum() / w.sum()),
 }
 nat_actual = {
     'APC': float((actual_2023['APC_%'] * actual_2023['Votes']).sum() / actual_2023['Votes'].sum()),
     'PDP': float((actual_2023['PDP_%'] * actual_2023['Votes']).sum() / actual_2023['Votes'].sum()),
-    'LP': float((actual_2023['LP_%'] * actual_2023['Votes']).sum() / actual_2023['Votes'].sum()),
+    'LP':  float((actual_2023['LP_%']  * actual_2023['Votes']).sum() / actual_2023['Votes'].sum()),
 }
 
 winner = max(nat_pred, key=nat_pred.get)
@@ -152,7 +187,7 @@ fig2.update_layout(
 )
 st.plotly_chart(fig2, use_container_width=True)
 
-# ---------- State-by-state table ----------
+# ── State table ───────────────────────────────────────────────────────────────
 st.subheader("All States — Predicted vs Actual")
 
 table = scen[['State', 'Pred_APC_%', 'Pred_PDP_%', 'Pred_LP_%']].copy()
