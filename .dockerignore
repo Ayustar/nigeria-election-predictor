@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+notebooks/
+app.py
+requirements.txt
+*.md
+mlflow.db
+mlruns/
