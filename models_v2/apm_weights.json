@@ -1,0 +1,14 @@
+{
+  "zone_weights": {
+    "South-West": 5.0,
+    "North-East": 8.0,
+    "North-Central": 3.0,
+    "South-South": 2.0,
+    "South-East": 2.0,
+    "North-West": 2.0
+  },
+  "state_overrides": {
+    "Oyo": 40.0,
+    "Bauchi": 18.0
+  }
+}
