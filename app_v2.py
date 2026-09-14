@@ -17,37 +17,38 @@ CANDIDATE_COLORS = {
     'APM': '#FF8C00',
 }
 
+GOV_ENCODE = {'APC': 0, 'PDP': 1, 'Other': 2}
+GOV_DECODE = {0: 'APC', 1: 'PDP', 2: 'Other'}
+
+INCUMBENT_ENCODE = {'APC': 1, 'ADC': 0, 'NDC': 0, 'APM': 0}
+
 st.set_page_config(page_title="Nigeria 2027 Election Predictor", layout="wide")
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    df = pd.read_csv('data/nigeria_2027_features.csv')
-    return df
+    features    = pd.read_csv('data/nigeria_2027_features.csv')
+    predictions = pd.read_csv('data/predictions_2027.csv')
+    return features, predictions
 
 @st.cache_data
 def load_geojson():
     with open('data/nigeria.geojson', 'r') as f:
         return json.load(f)
 
-state_df = load_data()
-geojson  = load_geojson()
+state_df, pred_df = load_data()
+geojson           = load_geojson()
 
-# ── API calls ─────────────────────────────────────────────────────────────────
-def wake_api():
-    try:
-        requests.get(f"{API_BASE_URL}/health", timeout=60)
-    except:
-        pass
-
-def call_predict_2027(row_dict, turnout):
+# ── API call — single state only ─────────────────────────────────────────────
+def call_predict_2027(row_dict, turnout, gov_encoded,
+                      incumbent_encoded, gov_aligns_incumbent):
     payload = {
         "State":                         str(row_dict['State']),
         "Zone_Encoded":                  float(row_dict['Zone_Encoded']),
         "Turnout_pct":                   float(turnout),
-        "Gov_Encoded":                   float(row_dict['Gov_2026_Encoded']),
-        "Incumbent_Encoded":             float(row_dict['Incumbent_Encoded']),
-        "Gov_Aligns_Incumbent":          float(row_dict['Gov_Aligns_APC']),
+        "Gov_Encoded":                   float(gov_encoded),
+        "Incumbent_Encoded":             float(incumbent_encoded),
+        "Gov_Aligns_Incumbent":          float(gov_aligns_incumbent),
         "National_Security_Incidents":   float(row_dict['National_Security_Incidents']),
         "Prev_APC_pct":                  float(row_dict['Prev_APC_%']),
         "Prev_ADC_pct":                  float(row_dict['Prev_ADC_%']),
@@ -66,38 +67,6 @@ def call_predict_2027(row_dict, turnout):
     response.raise_for_status()
     return response.json()
 
-@st.cache_data
-def get_all_predictions(turnout):
-    wake_api()
-    results = []
-    errors  = []
-
-    for _, row in state_df.iterrows():
-        try:
-            pred = call_predict_2027(row.to_dict(), turnout)
-            results.append({
-                'State':  row['State'],
-                'Zone':   row['Geopolitical_Zone'],
-                'APC_%':  pred['apc_pct'],
-                'ADC_%':  pred['adc_pct'],
-                'NDC_%':  pred['ndc_pct'],
-                'APM_%':  pred['apm_pct'],
-                'Winner': pred['winner'],
-            })
-        except Exception as e:
-            errors.append(row['State'])
-            results.append({
-                'State':  row['State'],
-                'Zone':   row['Geopolitical_Zone'],
-                'APC_%':  np.nan,
-                'ADC_%':  np.nan,
-                'NDC_%':  np.nan,
-                'APM_%':  np.nan,
-                'Winner': 'Unknown',
-            })
-
-    return pd.DataFrame(results), errors
-
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.title("🗳️ Nigeria 2027 Presidential Election Predictor")
 st.caption("State-level vote share predictions — APC · ADC · NDC · APM")
@@ -105,26 +74,71 @@ st.divider()
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("Scenario Inputs")
+    st.header("State & Scenario Inputs")
+
     selected_state = st.selectbox(
         "Select State", sorted(state_df['State'].unique()))
+    state_row = state_df[state_df['State'] == selected_state].iloc[0]
+
     st.subheader("Adjust Scenario")
+
+    # Turnout
+    baseline_turnout = float(state_row['Turnout_%'])
     turnout = st.slider(
-        "Voter Turnout (%)", 10.0, 60.0,
-        float(state_df[state_df['State'] == selected_state]['Turnout_%'].values[0])
+        "Voter Turnout (%)", 10.0, 60.0, baseline_turnout)
+
+    # Governor's party
+    current_gov = GOV_DECODE.get(int(state_row['Gov_2026_Encoded']), 'Other')
+    gov_options = ['APC', 'PDP', 'Other']
+    gov_party   = st.selectbox(
+        "Governor's Party",
+        gov_options,
+        index=gov_options.index(current_gov) if current_gov in gov_options else 2
     )
+    gov_encoded = GOV_ENCODE[gov_party]
 
-# ── Get predictions (cached per turnout value) ────────────────────────────────
-with st.spinner("Getting 2027 predictions... (first load may take 30–60s)"):
-    pred_df, errors = get_all_predictions(turnout)
+    # Federal incumbent
+    incumbent_options = ['APC', 'ADC', 'NDC', 'APM']
+    incumbent = st.selectbox(
+        "Federal Incumbent Party",
+        incumbent_options,
+        index=0  # APC default
+    )
+    incumbent_encoded      = INCUMBENT_ENCODE[incumbent]
+    gov_aligns_incumbent   = 1 if (
+        (gov_party == 'APC' and incumbent == 'APC') or
+        (gov_party == 'PDP' and incumbent == 'ADC')
+    ) else 0
 
-if errors:
-    st.warning(f"API call failed for: {', '.join(errors)}")
+# ── Check if scenario changed from baseline ───────────────────────────────────
+scenario_changed = (
+    abs(turnout - baseline_turnout) > 0.01 or
+    gov_encoded != int(state_row['Gov_2026_Encoded']) or
+    incumbent != 'APC'
+)
 
-# ── Selected state ────────────────────────────────────────────────────────────
-sel = pred_df[pred_df['State'] == selected_state].iloc[0]
-
+# ── Selected state section ────────────────────────────────────────────────────
 st.header(f"📍 {selected_state}")
+
+if scenario_changed:
+    with st.spinner(f"Updating prediction for {selected_state}..."):
+        try:
+            pred = call_predict_2027(
+                state_row.to_dict(), turnout,
+                gov_encoded, incumbent_encoded, gov_aligns_incumbent
+            )
+            sel = {
+                'APC_%':  pred['apc_pct'],
+                'ADC_%':  pred['adc_pct'],
+                'NDC_%':  pred['ndc_pct'],
+                'APM_%':  pred['apm_pct'],
+                'Winner': pred['winner'],
+            }
+        except Exception as e:
+            st.warning(f"API call failed: {e}")
+            sel = pred_df[pred_df['State'] == selected_state].iloc[0]
+else:
+    sel = pred_df[pred_df['State'] == selected_state].iloc[0]
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("APC (Tinubu)",         f"{sel['APC_%']:.1f}%")
@@ -144,8 +158,12 @@ fig_state.add_trace(go.Bar(
     text=[f"{v:.1f}%" for v in values],
     textposition='outside'
 ))
+
+title_suffix = f" (Turnout: {turnout:.1f}%, Gov: {gov_party}, Incumbent: {incumbent})" \
+    if scenario_changed else ""
+
 fig_state.update_layout(
-    title=f"{selected_state} — 2027 Predicted Vote Share",
+    title=f"{selected_state} — 2027 Predicted Vote Share{title_suffix}",
     yaxis=dict(title="Vote Share (%)", range=[0, 100]),
     plot_bgcolor='white', height=400
 )
@@ -153,8 +171,9 @@ st.plotly_chart(fig_state, use_container_width=True)
 
 st.divider()
 
-# ── National scoreboard ───────────────────────────────────────────────────────
+# ── National scoreboard — always from precomputed CSV ─────────────────────────
 st.header("🇳🇬 National Scoreboard")
+st.caption("Based on baseline scenario — 2023 turnout, Sep 2026 governors, APC incumbent")
 
 winner_counts = pred_df['Winner'].value_counts()
 s1, s2, s3, s4 = st.columns(4)
@@ -171,6 +190,7 @@ st.divider()
 
 # ── Nigeria Map ───────────────────────────────────────────────────────────────
 st.header("🗺️ State-by-State Winner Map")
+st.caption("Baseline scenario")
 
 try:
     fig_map = px.choropleth(
@@ -188,7 +208,7 @@ try:
             'APM_%': ':.1f',
             'Winner': True
         },
-        title='Projected 2027 Winner by State'
+        title='Projected 2027 Winner by State (Baseline)'
     )
     fig_map.update_geos(
         fitbounds="locations",
@@ -207,6 +227,7 @@ st.divider()
 
 # ── National vote share chart ─────────────────────────────────────────────────
 st.header("📊 National Vote Share (Simple Average)")
+st.caption("Baseline scenario")
 
 nat_avg = {
     'APC': pred_df['APC_%'].mean(),
@@ -231,9 +252,9 @@ fig_nat.update_layout(
 st.plotly_chart(fig_nat, use_container_width=True)
 
 # ── State-by-state table ──────────────────────────────────────────────────────
-st.subheader("All States — 2027 Predicted Results")
+st.subheader("All States — 2027 Predicted Results (Baseline)")
 
-table = pred_df[['State', 'Zone', 'APC_%', 'ADC_%',
+table = pred_df[['State', 'Geopolitical_Zone', 'APC_%', 'ADC_%',
                   'NDC_%', 'APM_%', 'Winner']].copy()
 table[['APC_%', 'ADC_%', 'NDC_%', 'APM_%']] = \
     table[['APC_%', 'ADC_%', 'NDC_%', 'APM_%']].round(1)
@@ -248,6 +269,7 @@ st.dataframe(
 st.caption(
     "⚠️ APM predictions are rule-based (no historical presidential data for APM). "
     "NDC model trained on 2023 data only. "
-    "All predictions are probabilistic estimates, not guarantees. "
-    "Turnout scenario adjustable via sidebar slider."
+    "Baseline predictions precomputed at each state's 2023 turnout, Sep 2026 governors, APC incumbent. "
+    "Sidebar scenario inputs update the selected state's prediction via live API call. "
+    "All predictions are probabilistic estimates, not guarantees."
 )
