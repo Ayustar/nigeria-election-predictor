@@ -33,7 +33,7 @@ def load_geojson():
 state_df = load_data()
 geojson  = load_geojson()
 
-# ── API call ──────────────────────────────────────────────────────────────────
+# ── API calls ─────────────────────────────────────────────────────────────────
 def wake_api():
     try:
         requests.get(f"{API_BASE_URL}/health", timeout=60)
@@ -66,27 +66,9 @@ def call_predict_2027(row_dict, turnout):
     response.raise_for_status()
     return response.json()
 
-# ── UI ────────────────────────────────────────────────────────────────────────
-st.title("🗳️ Nigeria 2027 Presidential Election Predictor")
-st.caption("State-level vote share predictions — APC · ADC · NDC · APM")
-st.divider()
-
-# ── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.header("Scenario Inputs")
-    selected_state = st.selectbox(
-        "Select State", sorted(state_df['State'].unique()))
-    st.subheader("Adjust Scenario")
-    turnout = st.slider(
-        "Voter Turnout (%)", 10.0, 60.0,
-        float(state_df[state_df['State'] == selected_state]['Turnout_%'].values[0])
-    )
-
-# ── Wake API + Get predictions ────────────────────────────────────────────────
-with st.spinner("Waking up prediction server..."):
+@st.cache_data
+def get_all_predictions(turnout):
     wake_api()
-
-with st.spinner("Getting 2027 predictions... (first load may take 30–60s)"):
     results = []
     errors  = []
 
@@ -114,7 +96,27 @@ with st.spinner("Getting 2027 predictions... (first load may take 30–60s)"):
                 'Winner': 'Unknown',
             })
 
-    pred_df = pd.DataFrame(results)
+    return pd.DataFrame(results), errors
+
+# ── UI ────────────────────────────────────────────────────────────────────────
+st.title("🗳️ Nigeria 2027 Presidential Election Predictor")
+st.caption("State-level vote share predictions — APC · ADC · NDC · APM")
+st.divider()
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.header("Scenario Inputs")
+    selected_state = st.selectbox(
+        "Select State", sorted(state_df['State'].unique()))
+    st.subheader("Adjust Scenario")
+    turnout = st.slider(
+        "Voter Turnout (%)", 10.0, 60.0,
+        float(state_df[state_df['State'] == selected_state]['Turnout_%'].values[0])
+    )
+
+# ── Get predictions (cached per turnout value) ────────────────────────────────
+with st.spinner("Getting 2027 predictions... (first load may take 30–60s)"):
+    pred_df, errors = get_all_predictions(turnout)
 
 if errors:
     st.warning(f"API call failed for: {', '.join(errors)}")
