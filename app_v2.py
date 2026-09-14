@@ -7,8 +7,8 @@ import plotly.express as px
 import json
 
 # ── Config ───────────────────────────────────────────────────────────────────
-API_URL      = "https://nigeria-election-predictor-api.onrender.com/predict_2027"
-GEOJSON_URL  = "https://raw.githubusercontent.com/deldersveld/topojson/master/countries/nigeria/nigeria-states.json"
+API_URL     = "https://nigeria-election-predictor-api.onrender.com/predict_2027"
+GEOJSON_URL = "https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/NGA/ADM1/geoBoundaries-NGA-ADM1_simplified.geojson"
 
 CANDIDATE_COLORS = {
     'APC': '#004C97',
@@ -28,13 +28,11 @@ def load_data():
 @st.cache_data
 def load_geojson():
     resp = requests.get(GEOJSON_URL, timeout=30)
+    resp.raise_for_status()
     return resp.json()
 
-state_df  = load_data()
-geojson   = load_geojson()
-
-GOV_DECODE = {0: 'APC', 1: 'PDP', 2: 'Other'}
-GOV_ENCODE = {'APC': 0, 'PDP': 1, 'Other': 2}
+state_df = load_data()
+geojson  = load_geojson()
 
 # ── API call ──────────────────────────────────────────────────────────────────
 def call_predict_2027(row_dict, turnout):
@@ -88,24 +86,24 @@ with st.spinner("Getting 2027 predictions from API..."):
         try:
             pred = call_predict_2027(row.to_dict(), turnout)
             results.append({
-                'State':      row['State'],
-                'Zone':       row['Geopolitical_Zone'],
-                'APC_%':      pred['apc_pct'],
-                'ADC_%':      pred['adc_pct'],
-                'NDC_%':      pred['ndc_pct'],
-                'APM_%':      pred['apm_pct'],
-                'Winner':     pred['winner'],
+                'State':   row['State'],
+                'Zone':    row['Geopolitical_Zone'],
+                'APC_%':   pred['apc_pct'],
+                'ADC_%':   pred['adc_pct'],
+                'NDC_%':   pred['ndc_pct'],
+                'APM_%':   pred['apm_pct'],
+                'Winner':  pred['winner'],
             })
         except Exception as e:
             errors.append(row['State'])
             results.append({
-                'State':  row['State'],
-                'Zone':   row['Geopolitical_Zone'],
-                'APC_%':  np.nan,
-                'ADC_%':  np.nan,
-                'NDC_%':  np.nan,
-                'APM_%':  np.nan,
-                'Winner': 'Unknown',
+                'State':   row['State'],
+                'Zone':    row['Geopolitical_Zone'],
+                'APC_%':   np.nan,
+                'ADC_%':   np.nan,
+                'NDC_%':   np.nan,
+                'APM_%':   np.nan,
+                'Winner':  'Unknown',
             })
 
     pred_df = pd.DataFrame(results)
@@ -164,15 +162,12 @@ st.divider()
 # ── Nigeria Map ───────────────────────────────────────────────────────────────
 st.header("🗺️ State-by-State Winner Map")
 
-# Map winner to color
-pred_df['Winner_Color'] = pred_df['Winner'].map(CANDIDATE_COLORS)
-
 try:
     fig_map = px.choropleth(
         pred_df,
         geojson=geojson,
         locations='State',
-        featureidkey='properties.NAME_1',
+        featureidkey='properties.shapeName',
         color='Winner',
         color_discrete_map=CANDIDATE_COLORS,
         hover_name='State',
