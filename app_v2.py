@@ -7,7 +7,8 @@ import plotly.express as px
 import json
 
 # ── Config ───────────────────────────────────────────────────────────────────
-API_URL = "https://nigeria-election-predictor-api.onrender.com/predict_2027"
+API_BASE_URL = "https://nigeria-election-predictor-api.onrender.com"
+API_URL      = f"{API_BASE_URL}/predict_2027"
 
 CANDIDATE_COLORS = {
     'APC': '#004C97',
@@ -33,6 +34,12 @@ state_df = load_data()
 geojson  = load_geojson()
 
 # ── API call ──────────────────────────────────────────────────────────────────
+def wake_api():
+    try:
+        requests.get(f"{API_BASE_URL}/health", timeout=60)
+    except:
+        pass
+
 def call_predict_2027(row_dict, turnout):
     payload = {
         "State":                         str(row_dict['State']),
@@ -55,7 +62,7 @@ def call_predict_2027(row_dict, turnout):
         "Federal_Admin_Control":         float(row_dict['Federal_Admin_Control']),
         "Geopolitical_Zone":             str(row_dict['Geopolitical_Zone']),
     }
-    response = requests.post(API_URL, json=payload, timeout=30)
+    response = requests.post(API_URL, json=payload, timeout=60)
     response.raise_for_status()
     return response.json()
 
@@ -75,8 +82,11 @@ with st.sidebar:
         float(state_df[state_df['State'] == selected_state]['Turnout_%'].values[0])
     )
 
-# ── Get predictions for all states ───────────────────────────────────────────
-with st.spinner("Getting 2027 predictions from API..."):
+# ── Wake API + Get predictions ────────────────────────────────────────────────
+with st.spinner("Waking up prediction server..."):
+    wake_api()
+
+with st.spinner("Getting 2027 predictions... (first load may take 30–60s)"):
     results = []
     errors  = []
 
