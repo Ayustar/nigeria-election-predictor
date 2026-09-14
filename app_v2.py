@@ -17,10 +17,23 @@ CANDIDATE_COLORS = {
     'APM': '#FF8C00',
 }
 
-GOV_ENCODE = {'APC': 0, 'PDP': 1, 'Other': 2}
-GOV_DECODE = {0: 'APC', 1: 'PDP', 2: 'Other'}
+GOV_ENCODE = {
+    'APC':    0,
+    'PDP':    1,
+    'APM':    2,
+    'Accord': 2,
+    'LP':     2,
+    'APGA':   2,
+    'Other':  2,
+}
 
-INCUMBENT_ENCODE = {'APC': 1, 'ADC': 0, 'NDC': 0, 'APM': 0}
+INCUMBENT_ENCODE = {
+    'APC': 1,
+    'ADC': 0,
+    'NDC': 0,
+    'APM': 0,
+    'PDP': 0,
+}
 
 st.set_page_config(page_title="Nigeria 2027 Election Predictor", layout="wide")
 
@@ -88,26 +101,33 @@ with st.sidebar:
         "Voter Turnout (%)", 10.0, 60.0, baseline_turnout)
 
     # Governor's party
-    current_gov = GOV_DECODE.get(int(state_row['Gov_2026_Encoded']), 'Other')
-    gov_options = ['APC', 'PDP', 'Other']
-    gov_party   = st.selectbox(
+    gov_options  = ['APC', 'PDP', 'APM', 'Accord', 'LP', 'APGA', 'Other']
+    current_gov  = str(state_row['Gov_2026'])
+    default_gov  = current_gov if current_gov in gov_options else 'Other'
+    gov_party    = st.selectbox(
         "Governor's Party",
         gov_options,
-        index=gov_options.index(current_gov) if current_gov in gov_options else 2
+        index=gov_options.index(default_gov)
     )
     gov_encoded = GOV_ENCODE[gov_party]
 
     # Federal incumbent
-    incumbent_options = ['APC', 'ADC', 'NDC', 'APM']
+    incumbent_options = ['APC', 'ADC', 'NDC', 'APM', 'PDP']
     incumbent = st.selectbox(
         "Federal Incumbent Party",
         incumbent_options,
-        index=0  # APC default
+        index=0
     )
-    incumbent_encoded      = INCUMBENT_ENCODE[incumbent]
-    gov_aligns_incumbent   = 1 if (
-        (gov_party == 'APC' and incumbent == 'APC') or
-        (gov_party == 'PDP' and incumbent == 'ADC')
+    incumbent_encoded = INCUMBENT_ENCODE[incumbent]
+
+    # Gov aligns incumbent
+    gov_aligns_incumbent = 1 if (
+        (gov_party == 'APC'    and incumbent == 'APC') or
+        (gov_party == 'PDP'    and incumbent == 'ADC') or
+        (gov_party == 'APM'    and incumbent == 'APM') or
+        (gov_party == 'Accord' and incumbent == 'ADC') or
+        (gov_party == 'LP'     and incumbent == 'NDC') or
+        (gov_party == 'APGA'   and incumbent == 'NDC')
     ) else 0
 
 # ── Check if scenario changed from baseline ───────────────────────────────────
@@ -159,8 +179,9 @@ fig_state.add_trace(go.Bar(
     textposition='outside'
 ))
 
-title_suffix = f" (Turnout: {turnout:.1f}%, Gov: {gov_party}, Incumbent: {incumbent})" \
-    if scenario_changed else ""
+title_suffix = (f" (Turnout: {turnout:.1f}%, "
+                f"Gov: {gov_party}, "
+                f"Incumbent: {incumbent})") if scenario_changed else ""
 
 fig_state.update_layout(
     title=f"{selected_state} — 2027 Predicted Vote Share{title_suffix}",
@@ -173,7 +194,7 @@ st.divider()
 
 # ── National scoreboard — always from precomputed CSV ─────────────────────────
 st.header("🇳🇬 National Scoreboard")
-st.caption("Based on baseline scenario — 2023 turnout, Sep 2026 governors, APC incumbent")
+st.caption("Baseline scenario — 2023 turnout, Sep 2026 governors, APC incumbent")
 
 winner_counts = pred_df['Winner'].value_counts()
 s1, s2, s3, s4 = st.columns(4)
