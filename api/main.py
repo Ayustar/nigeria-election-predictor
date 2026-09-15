@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 import joblib
 import json
@@ -112,6 +112,14 @@ def root():
 def health():
     return {"status": "healthy"}
 
+@app.head("/health")
+def health_head():
+    return Response(status_code=200)
+
+@app.head("/")
+def root_head():
+    return Response(status_code=200)
+
 # v1 endpoint
 @app.post("/predict", response_model=PredictResponse)
 def predict_v1(request: PredictRequest):
@@ -171,19 +179,15 @@ def predict_v2(request: PredictRequest2027):
             "Federal_Admin_Control":         request.Federal_Admin_Control,
         }
 
-        # APC and ADC predictions
         input_apc_adc = pd.DataFrame([input_dict])[features_apc_adc_v2]
         apc_raw = float(model_apc_v2.predict(input_apc_adc)[0])
         adc_raw = float(model_adc_v2.predict(input_apc_adc)[0])
 
-        # NDC prediction
         input_ndc = pd.DataFrame([input_dict])[features_ndc_v2]
         ndc_raw = float(model_ndc_v2.predict(input_ndc)[0])
 
-        # APM rule-based
         apm_raw = compute_apm(request.State, request.Geopolitical_Zone)
 
-        # Normalise to 100%
         total   = apc_raw + adc_raw + ndc_raw + apm_raw
         apc_pct = round(apc_raw / total * 100, 2)
         adc_pct = round(adc_raw / total * 100, 2)
